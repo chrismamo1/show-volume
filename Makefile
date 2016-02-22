@@ -3,3 +3,6 @@ all: show-volume.ml
 
 install:
 	cp show-volume.native /usr/local/bin/show-volume.native
+
+uninstall:
+	rm /usr/local/bin/show-volume.native
