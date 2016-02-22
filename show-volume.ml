@@ -95,7 +95,7 @@ let () =
             indicator_printer indicator;
           end
           else indicator_printer indicator;
-          output_string stdout "\n";
+          output_string stdout "\r";
     | true ->
         let fulltext = Printf.sprintf "Sink #%d: %s%s" !n icon indicator in
         let output = Yojson.Basic.(
