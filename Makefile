@@ -1,7 +1,7 @@
 INSTALL_PATH?=/user/local/bin/show-volume.native
 
 all: show-volume.ml
-	corebuild -package camomile -package humane_re -package textutils -package yojson show-volume.native
+	corebuild -use-ocamlfind -pkgs lwt.unix,lwt,camomile,humane_re,textutils,yojson show-volume.native
 
 clean:
 	ocamlbuild -clean
