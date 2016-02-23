@@ -69,14 +69,16 @@ let rec main ({utf8; colored; i3bar; n} as cfg) old_state = begin
     end
   in
   let indicator =
-    if utf8 then begin
+    match utf8, vol with
+    | true, (v, _) when v = 0 -> ""
+    | true, _ ->
       let open CamomileLibrary in let open UPervasives in
       let ch = Scanf.sscanf (escaped_utf8 solid_rect) "\\u%x" (fun x -> x) in
       let ch' = Scanf.sscanf (escaped_utf8 outline_rect) "\\u%x" (fun x -> x) in
       UTF8.init 10 (fun i ->
         uchar_of_int (if i < (fst vol) / 10 then ch else ch'))
-    end
-    else Printf.sprintf "% 3d%%  " (fst vol)
+    | false, _ ->
+        Printf.sprintf "% 3d%%  " (fst vol)
   in
   let indicator_color = if fst vol <= 20 then `Yellow else `Green in
   let icon_printer =
