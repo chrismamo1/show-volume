@@ -19,11 +19,8 @@ let parse_pactl =
   let states_matcher = Str.regexp "State: \\(.*\\)\n" in
   let volumes_matcher = Str.regexp "\tVolume: \\(.*\\)\n" in
   fun lines ->
-    let sinks =
-      lines
-      |> Str.(find_matches sinks_matcher) in
-    let states =
-      List.map Str.(find_matches states_matcher) sinks in
+    let sinks = Str.(find_matches sinks_matcher lines) in
+    let states = List.map Str.(find_matches states_matcher) sinks in
     let volumes =
       List.map Str.(find_matches volumes_matcher) sinks (* gets the raw volume strings *)
       |> List.flatten
@@ -34,7 +31,7 @@ let parse_pactl =
                       str
                       "\tVolume: front-left: %d / %d%% / %f dB, front-right: %d / %d%% / %f dB"
                       (fun _ a _ _ b _ -> a,b))
-            with | exn -> 0, 0)
+            with exn -> 0, 0)
     in
     List.map2 (fun a b -> a,b) states volumes;;
 
