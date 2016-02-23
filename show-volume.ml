@@ -2,6 +2,12 @@ open Humane_re
 open Textutils.Std
 open Lwt.Infix
 
+type conf = {
+  utf8: bool;
+  colored: bool;
+  i3bar: bool;
+  n: int }
+
 let mute_icon = "🔇";;
 let speaker_icon = "🔈";;
 let solid_rect = "▰";;
@@ -52,7 +58,7 @@ let rec read_volume ?(count = 0) nsink old_state =
       then Lwt_unix.sleep 0.125 >>= fun () -> read_volume ~count nsink old_state
       else Lwt.return sink
 
-let rec main (utf8, colored, i3bar, n) old_state = begin
+let rec main ({utf8; colored; i3bar; n} as cfg) old_state = begin
   read_volume n old_state
   >>= fun (stat, vol) ->
   let icon = if fst vol > 0 then speaker_icon else mute_icon in
@@ -106,7 +112,7 @@ let rec main (utf8, colored, i3bar, n) old_state = begin
       output_string stdout (Yojson.Basic.to_string output ^ "\n");
   end;
   flush_all ();
-  main (utf8, colored, i3bar, n) (Some (stat,vol)); (* pretty sure this is a tailcall *)
+  main cfg (Some (stat,vol)); (* pretty sure this is a tailcall *)
 end
 
 let () =
@@ -123,4 +129,5 @@ let () =
                    device in the terminal, intended for use with the i3 window \
                    manager panel. Options:" in
   let _ = Arg.parse speclist print_endline usage_msg in
-  Lwt_main.run (main (!utf8, !colored, !i3bar, !n) None)
+  let utf8, colored, i3bar, n = !utf8, !colored, !i3bar, !n in
+  Lwt_main.run (main {utf8; colored; i3bar; n} None)
