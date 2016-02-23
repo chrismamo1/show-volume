@@ -1,4 +1,4 @@
-INSTALL_PATH?=/user/local/bin/show-volume.native
+INSTALL_PATH?=/usr/local/bin/show-volume.native
 
 all: show-volume.ml
 	corebuild -use-ocamlfind -pkgs lwt.unix,lwt,camomile,humane_re,textutils,yojson show-volume.native
