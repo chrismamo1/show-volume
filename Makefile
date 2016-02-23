@@ -7,9 +7,8 @@ show-volume.native: show-volume.ml
 
 clean:
 	ocamlbuild -clean
-	rm ./show-volume.native
 
-install:
+install: show-volume.native
 	cp show-volume.native $(INSTALL_PATH)
 
 uninstall:
