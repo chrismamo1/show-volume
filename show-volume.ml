@@ -13,71 +13,36 @@ let speaker_icon = "🔈";;
 let solid_rect = "▰";;
 let outline_rect = "▱";;
 
-let parse_pactl =
-  (* prebuilding regular expressions for performance *)
-  let sinks_matcher = Str.regexp "Sink #.*\n\\(\t+.*\n\\)+" in
-  let states_matcher = Str.regexp "State: \\(.*\\)\n" in
-  let volumes_matcher = Str.regexp "\tVolume: \\(.*\\)\n" in
-  fun lines ->
-    let sinks = Str.(find_matches sinks_matcher lines) in
-    let states = List.map Str.(find_matches states_matcher) sinks in
-    let volumes =
-      List.map Str.(find_matches volumes_matcher) sinks (* gets the raw volume strings *)
-      |> List.flatten
-      |> List.map
-          (fun str ->
-            try
-              Scanf.(sscanf
-                      str
-                      "\tVolume: front-left: %d / %d%% / %f dB, front-right: %d / %d%% / %f dB"
-                      (fun _ a _ _ b _ -> a,b))
-            with exn -> 0, 0)
-    in
-    List.map2 (fun a b -> a,b) states volumes;;
-
 let color_to_string = function
   | `Red -> "#ff0000"
   | `Green -> "#00ff00"
   | `Yellow -> "#ffff00"
 
-let rec read_volume ?(count = 0) nsink old_state =
-  let count = count + 1 in
-  let cmd = "", [|"pactl"; "list"; "sinks"|] in
-  Lwt_process.pread cmd
-  >>= fun lines ->
-  let sinks = parse_pactl lines in
-  let sink = List.nth sinks nsink in
-  match old_state with
-  | None -> Lwt.return sink
-  | Some v when count > 100 -> Lwt.return v (* so that overflow may be avoided *)
-  | Some v ->
-      if v = sink
-      then Lwt_unix.sleep 0.125 >>= fun () -> read_volume ~count nsink old_state
-      else Lwt.return sink
-
 let rec main ({utf8; colored; i3bar; n} as cfg) old_state = begin
-  read_volume n old_state
-  >>= fun (stat, vol) ->
-  let icon = if fst vol > 0 then speaker_icon else mute_icon in
+  DataSources.FilthyPulse.read_volume
+    (`Sink (DataSources.FilthyPulse.sink_of_int n))
+    old_state
+  >>= fun ({status = stat; volume = [| vol_lft; vol_rgt |] }) ->
+  let icon = if vol_lft > 0 then speaker_icon else mute_icon in
   let icon_color =
-    if fst vol = 0 then `Red
+    if vol_lft = 0 then `Red
     else begin
-      if fst vol <= 29 then `Yellow else `Green
+      if vol_lft <= 29 then `Yellow else `Green
     end
   in
   let indicator =
-    match utf8, vol with
-    | true, (v, _) when v = 0 -> ""
+    match utf8, vol_lft with
+    | true, v when v = 0 -> ""
     | true, _ ->
       let open CamomileLibrary in let open UPervasives in
       let ch = Scanf.sscanf (escaped_utf8 solid_rect) "\\u%x" (fun x -> x) in
       let ch' = Scanf.sscanf (escaped_utf8 outline_rect) "\\u%x" (fun x -> x) in
       UTF8.init 10 (fun i ->
-        uchar_of_int (if i < (fst vol) / 10 then ch else ch'))
+        uchar_of_int (if i < (vol_lft) / 10 then ch else ch'))
     | false, _ ->
-        Printf.sprintf "% 3d%%  " (fst vol)
+        Printf.sprintf "% 3d%%  " (vol_lft)
   in
-  let indicator_color = if fst vol <= 20 then `Yellow else `Green in
+  let indicator_color = if vol_lft <= 20 then `Yellow else `Green in
   let icon_printer =
     if colored
     then Console.Ansi.(output_string [icon_color] stdout)
@@ -111,7 +76,7 @@ let rec main ({utf8; colored; i3bar; n} as cfg) old_state = begin
       output_string stdout (Yojson.Basic.to_string output ^ "\n");
   end;
   flush_all ();
-  main cfg (Some (stat,vol)); (* pretty sure this is a tailcall *)
+  main cfg (Some {status = stat; volume = [|vol_lft; vol_rgt|]}); (* pretty sure this is a tailcall *)
 end
 
 let () =
