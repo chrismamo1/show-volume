@@ -6,7 +6,8 @@ type conf = {
   utf8: bool;
   colored: bool;
   i3bar: bool;
-  n: int }
+  n: int;
+  volume_provider: (module DataSources.VolumeProvider) }
 
 let mute_icon = "🔇";;
 let speaker_icon = "🔈";;
@@ -18,9 +19,10 @@ let color_to_string = function
   | `Green -> "#00ff00"
   | `Yellow -> "#ffff00"
 
-let rec main ({utf8; colored; i3bar; n} as cfg) old_state = begin
-  DataSources.FilthyPulse.read_volume
-    (`Sink (DataSources.FilthyPulse.sink_of_int n))
+let rec main ({utf8; colored; i3bar; n; volume_provider} as cfg) old_state = begin
+  let (module Data) = volume_provider in
+  Data.read_volume
+    (`Sink (Data.sink_of_int n))
     old_state
   >>= fun ({status = stat; volume = [| vol_lft; vol_rgt |] }) ->
   let icon = if vol_lft > 0 then speaker_icon else mute_icon in
@@ -94,4 +96,7 @@ let () =
                    manager panel. Options:" in
   let _ = Arg.parse speclist print_endline usage_msg in
   let utf8, colored, i3bar, n = !utf8, !colored, !i3bar, !n in
-  Lwt_main.run (main {utf8; colored; i3bar; n} None)
+  let open DataSources in
+  let volume_provider = (module FilthyPulse : VolumeProvider) in
+  (* FilthyPulse is the only supported data source at the moment *)
+  Lwt_main.run (main {utf8; colored; i3bar; n; volume_provider} None)
