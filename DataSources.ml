@@ -24,7 +24,21 @@ module Make (M : VolumeProvider)
   let int_of_sink = M.int_of_sink
   let sink_of_int = M.sink_of_int
 
-  let read_volume = M.read_volume
+  let read_volume spec old_state =
+    let rec aux count =
+      M.read_volume spec old_state
+      >>= fun new_state ->
+      match old_state with
+      | None -> Lwt.return new_state
+      | Some s when count < 100 ->
+          if s = new_state
+          then Lwt_unix.sleep 0.125 >>= fun () -> aux (count + 1)
+          else Lwt.return new_state
+      | _ -> Lwt.return new_state
+    in
+    aux 0
+    >>= fun s ->
+    Lwt.return s
 end
 
 module FilthyPulse = Make(struct
@@ -51,15 +65,25 @@ module FilthyPulse = Make(struct
           |> List.map
               (fun str ->
                 try
-                  Scanf.(sscanf
-                          str
-                          "\tVolume: front-left: %d / %d%% / %f dB, front-right: %d / %d%% / %f dB"
-                          (fun _ a _ _ b _ -> a,b))
+                  Scanf.(sscanf str "\tVolume: front-left: %d / %d%% / %f dB, front-right: %d / %d%% / %f dB" (fun _ a _ _ b _ -> a,b))
                 with exn -> 0, 0)
         in
         List.map2 (fun a b -> a,b) states volumes
     in
-    let rec aux count nsink old_state =
+    function
+    | `Sink nsink ->
+        fun _ ->
+          let cmd = "", [|"pactl"; "list"; "sinks"|] in
+          Lwt_process.pread cmd
+          >>= fun lines ->
+          let sinks = parse_pactl lines in
+          let sink = List.nth sinks nsink in
+          let (status :: _), (vol_lft, vol_rgt) = sink in
+          let sink = { status; volume = [|vol_lft;vol_rgt|] } in
+          Lwt.return sink
+    | `Source _ ->
+        raise (Failure "not yet implemented")
+    (*let rec aux count nsink old_state =
       let count = count + 1 in
       let cmd = "", [|"pactl"; "list"; "sinks"|] in
       Lwt_process.pread cmd
@@ -80,5 +104,5 @@ module FilthyPulse = Make(struct
     | `Sink n ->
         fun old_state ->
           aux 0 n old_state
-    | `Source _ -> raise (Failure "not yet implemented")
+    | `Source _ -> raise (Failure "not yet implemented")*)
 end)
